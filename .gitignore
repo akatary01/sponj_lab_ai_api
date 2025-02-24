@@ -1,0 +1,9 @@
+**/__pycache__
+
+tmp
+logs 
+demo/in
+demo/out
+keys.json
+demo/*.obj
+sponj_lab_ai_env

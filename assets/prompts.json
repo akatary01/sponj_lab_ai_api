@@ -1,0 +1,10 @@
+{
+    "negative": "",
+    "sketchToImg": "photorealistic image, true to geometry of the sketch.",
+    "imgToImg": "8k, high resolution, 3d realistic, single object, centered, no background",
+    "caption": "caption the following image, describe the geometry in depth and style. If no style / colors are present then infer what the style / colors of different regions would be. Give your answer in 150 characters. Speak in third person and do not use 'image of' or 'the picture includes' or 'i see'.",
+    "search": "In less than 10000 characters, describe the main subject of the image. Be brief and explicit, do not describe anything else other than the main subject of the image.",
+    "sd": {
+        "systemPrompt": "8k, high resolution, 3d realistic, single object, centered, no background"
+    }
+}

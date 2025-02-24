@@ -1,0 +1,10 @@
+{
+    "allow_origins": [
+        "localhost:8000",
+        "https://sponj3d.com",
+        "http://localhost:8000"
+    ],
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+    "allow_credentials": true
+}
