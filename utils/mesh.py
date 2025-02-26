@@ -11,7 +11,7 @@ from utils.img import fig_to_img
 from matplotlib.collections import PolyCollection
 
 class SponjMesh(Logger):
-    def __init__(self, obj_path: str = None, glb_path: str = None, faces=None, vertices=None, extract_colors=True):
+    def __init__(self, obj_path: str, glb_path: str = None, faces=None, vertices=None, extract_colors=True):
         super().__init__()
         self.log_path = f"{BASE_DIR}/logs/sponj_mesh.log"
         

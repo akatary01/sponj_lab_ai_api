@@ -1,5 +1,6 @@
 import shutil
 import zipfile
+import sys
 
 from utils.mesh import SponjMesh
 from utils.thread import run_in_bg
@@ -17,74 +18,42 @@ from api.vars import (
     glb_task_to_path, 
     obj_task_to_path, 
 )
+sys.path.append("/home/farazfaruqi/stable-point-aware-3d")
+from gen_setup import *
+from inference import generate_from_image
 
+# Generates the mesh and sends the mesh to the user. 
 def mesh_generate(sponj_task_id: str, geo: Geometry, style: Style, is_sketch: bool = False) -> str | None:
-    mesh_id = None
     geo_prompt, geo_img = parse_geo(geo)
     style_prompt, style_img = parse_style(style)
 
     if geo_prompt:
-        if style_img:
-            style_prompt = openai_client.caption(style_img)
-        
-        mesh_id = tripo3d_client.text_to_mesh(prompt=f"{geo_prompt}. With the following style: {style_prompt}")
+        pass
+        # TODO: add support for generating mesh from text prompt
     
     elif geo_img:
-        if style_img or style_prompt or is_sketch:
-            img = img_generate(None, geo, style, is_sketch)
-        else:
-            img = base64_to_img(geo.img)
+        
+        img = base64_to_img(geo.img)
         if img:
-            mesh_id = tripo3d_client.img_to_mesh(img)
-            glb_task_to_path[mesh_id] = sponj_task_id
+            run_in_bg(generate_from_image_wrapper, img, on_mesh, sponj_task_id, is_async=True)
 
-    run_in_bg(tripo3d_client.watch, on_success=on_mesh, is_async=True, task_id=mesh_id)
-    return mesh_id  
+    return sponj_task_id
 
-def on_mesh(task_id: str, mesh_url: str, ext: {'glb', 'obj'}, type: {'text_to_model', 'image_to_model', 'convert_model'}):
-    if ext == "glb":
-        if task_id not in glb_task_to_path:
-            print(f"glb task {task_id} not in {glb_task_to_path}")
-            return 
+def generate_from_image_wrapper(img, on_success, sponj_task_id):
+    sponj_client.log(f"[mesh_generator] >> generating mesh...")
+    glb_mesh_path, obj_mesh_path, _ = generate_from_image([img])
+    sponj_client.log(f"[mesh_generator] >> generated mesh at {obj_mesh_path}")
 
-        sponj_task_id = glb_task_to_path[task_id]
-        _, glb_path = download(mesh_url, sponj_task_id, ext)
+    on_success(sponj_task_id, obj_mesh_path, glb_mesh_path)
 
-        obj_task_id = tripo3d_client.convert_mesh(task_id)
-        
-        del glb_task_to_path[task_id]
-        glb_task_to_path[obj_task_id] = glb_path
-        obj_task_to_path[obj_task_id] = sponj_task_id
-        
-        run_in_bg(tripo3d_client.watch, on_success=on_mesh, is_async=True, task_id=obj_task_id)
-    if ext == "obj":
-        if task_id not in obj_task_to_path:
-            print(f"obj task {task_id} not in {obj_task_to_path}")
-            return 
-        
-        sponj_task_id = obj_task_to_path[task_id]
-        obj_dir, zip_path = download(mesh_url, sponj_task_id, "zip")
+def on_mesh(sponj_task_id: str, obj_mesh_path: str, mesh_glb_path: str):
+    mesh = SponjMesh(obj_mesh_path, glb_path=mesh_glb_path)
 
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(obj_dir)
+    # mesh.get_largest_cc() 
+    # mesh.decimate(targetfacenum=15000)
 
-        obj_path = rename(obj_dir, "obj", sponj_task_id)[0]
-        obj_task_to_path[task_id] = obj_path
-        
-        
-        glb_path = glb_task_to_path[task_id]
-        mesh = SponjMesh(obj_path, glb_path=glb_path)
-
-        # mesh.get_largest_cc() 
-        # mesh.decimate(targetfacenum=15000)
-
-        gif_path = obj_path.replace(".obj", ".gif")
-        mesh.generate_gif(gif_path, frames=12, save_kwargs={"facecolor": "#887e7e"})
-        
-        uid = sponj_task_to_uid[sponj_task_id]
-        sponj_client.send_mesh(uid, sponj_task_id, mesh)
-        
-        # cleanup
-        shutil.rmtree(obj_dir) 
-        del glb_task_to_path[task_id]
-        del obj_task_to_path[task_id]
+    gif_path = mesh_glb_path.replace(".glb", ".gif")
+    mesh.generate_gif(gif_path, frames=12, save_kwargs={"facecolor": "#887e7e"})
+    
+    uid = sponj_task_to_uid[sponj_task_id]
+    sponj_client.send_mesh(uid, sponj_task_id, mesh) # sending the mesh back to the backend. 

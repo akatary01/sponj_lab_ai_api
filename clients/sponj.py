@@ -9,7 +9,7 @@ from utils.client import BaseClient
 
 class SponjClient(BaseClient):
     def __init__(self):
-        self.base_url = "http://localhost:8000/api" # for development
+        self.base_url = "http://34.127.57.13/api" # for development
         
         self.log_path = f"{BASE_DIR}/logs/sponj.log"
         self.endpoint = {
