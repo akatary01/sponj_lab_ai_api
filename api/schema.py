@@ -25,3 +25,9 @@ class CaptionRequest(Auth):
 class SegmentRequest(Auth):
     faces: List[List[int]]
     vertices: List[List[float]]
+
+class EditRequest(Auth):
+    prompt: str
+    faces: List[List[int]]
+    vertices: List[List[float]]
+    selected_vertices: List[List[float]]

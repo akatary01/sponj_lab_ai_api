@@ -7,12 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from utils.thread import run_in_bg
 from api.segment import segment_mesh
-from api.mesh import mesh_generate, on_mesh
 from api.img.control import img_structure, img_style
-from api.schema import AIRequest, SegmentRequest, CaptionRequest
+from api.mesh import mesh_generate, on_mesh, mesh_edit
 from api.img.generate import img_generate, img_caption, style_generate
-from api.vars import tripo3d_client, sponj_task_to_uid, segmentation_queue
+from api.schema import AIRequest, SegmentRequest, CaptionRequest, EditRequest
 from api.img.edit import img_recolor, img_remove_bg, img_replace, img_replace_bg
+from api.vars import tripo3d_client, sponj_task_to_uid, segmentation_queue, sponj_client
 
 BASE_DIR = Path(__file__).resolve().parent
 with open(f"{BASE_DIR}/config.json", "r") as config:
@@ -39,6 +39,7 @@ def ai_mesh_generate(mesh_info: AIRequest):
     sponj_task_to_uid[sponj_task_id] = uid
     style = style_generate(mesh_info.styles)
     run_in_bg(mesh_generate(sponj_task_id, mesh_info.geos[0], style, mesh_info.is_sketch))
+    sponj_client.log(f"[ai_mesh_generate] >> generated mesh with task_id: {sponj_task_id}")
 
     return {"task_id": sponj_task_id}
 
@@ -53,6 +54,23 @@ def ai_mesh_segment(mesh: SegmentRequest):
     sponj_task_to_uid[sponj_task_id] = uid
     segmentation_queue.append(sponj_task_id)
     run_in_bg(segment_mesh, sponj_task_id, vertices, faces)
+
+    return {"task_id": sponj_task_id}
+
+
+@api.post("/ai/mesh/edit")
+def ai_mesh_segment(mesh: EditRequest):
+    uid = mesh.uid
+    sponj_task_id = str(uuid.uuid4())
+
+    faces = mesh.faces
+    prompt = mesh.prompt
+    vertices = mesh.vertices
+    selected_vertices = mesh.selected_vertices
+
+    sponj_task_to_uid[sponj_task_id] = uid
+    sponj_client.log(f"[ai_mesh_edit] >> edited mesh with task_id: {sponj_task_id}")
+    run_in_bg(mesh_edit, sponj_task_id, vertices, faces, prompt, selected_vertices)
 
     return {"task_id": sponj_task_id}
 

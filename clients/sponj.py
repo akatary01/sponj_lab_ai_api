@@ -54,11 +54,16 @@ class SponjClient(BaseClient):
         
     def send_mesh(self, uid: str, task_id: str, mesh: SponjMesh):
         params = self.format_params(uid=uid, task_id=task_id)
+        mesh_json = mesh.json()
+
         body = {
             "type": "generate",
             "out": {
                 "type": "mesh",
-                "mesh": mesh.json()
+                "mesh": {
+                    "gif": mesh_json['gif'],
+                    "glb": base64.b64encode(mesh_json['glb'].read()).decode('utf-8'),
+                }
             }
         }
 

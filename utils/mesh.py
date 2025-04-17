@@ -11,20 +11,26 @@ from utils.img import fig_to_img
 from matplotlib.collections import PolyCollection
 
 class SponjMesh(Logger):
-    def __init__(self, obj_path: str, glb_path: str = None, faces=None, vertices=None, extract_colors=True):
+    def __init__(self, obj_path: str = None, glb_path: str = None, faces=None, vertices=None, extract_colors=True, **kwargs):
         super().__init__()
         self.log_path = f"{BASE_DIR}/logs/sponj_mesh.log"
-        
+
+        self.obj_path = obj_path
+        self.glb_path = glb_path
         self.ms = pymeshlab.MeshSet()
         if glb_path is not None and extract_colors:
             mesh = self.extract_colors_from_glb(glb_path, obj_path)
             self.ms.add_mesh(mesh)
-            self.ms.compute_color_transfer_face_to_vertex()
         elif obj_path is not None:
             self.ms.load_new_mesh(obj_path)
+            
         elif faces and vertices: 
-            self.ms.add_mesh(pymeshlab.Mesh(face_matrix=faces, vertex_matrix=vertices))
+            self.log(f"[SponjMesh] >> Creating mesh from faces, vertices and kwargs: {kwargs.keys()}")
+            self.ms.add_mesh(pymeshlab.Mesh(face_matrix=faces, vertex_matrix=vertices, **kwargs))
         
+        if self.ms.current_mesh().has_face_color():
+            self.ms.compute_color_transfer_face_to_vertex()
+            
         self.update()
         self.gif = None 
     
@@ -42,12 +48,19 @@ class SponjMesh(Logger):
 
         tmp_ms.clear() 
         del tmp_ms
-
-        return pymeshlab.Mesh(
-            face_matrix=faces, 
-            vertex_matrix=vertices, 
-            f_color_matrix=face_colors
-        )
+        if face_colors.shape[0] == faces.shape[0]:
+            return pymeshlab.Mesh(
+                face_matrix=faces, 
+                vertex_matrix=vertices, 
+                f_color_matrix=face_colors,
+                v_color_matrix=vertex_colors,
+            )
+        else:
+            return pymeshlab.Mesh(
+                face_matrix=faces, 
+                vertex_matrix=vertices, 
+                v_color_matrix=vertex_colors,
+            )
 
     def remove_empty(self, save_path=None, **kwargs):
         self.call([
@@ -155,15 +168,24 @@ class SponjMesh(Logger):
         if mesh_path is not None:
             ms = pymeshlab.MeshSet()
             ms.load_new_mesh(mesh_path)
-            ms.compute_color_transfer_vertex_to_face()
 
             F = ms.current_mesh().face_matrix()
             V = ms.current_mesh().vertex_matrix()
-            C = ms.current_mesh().face_color_matrix()
+
+            if ms.current_mesh().has_vertex_color():
+                ms.apply_color_brightness_contrast_gamma_per_vertex(gamma=2.2)
+                ms.compute_color_transfer_vertex_to_face()
+                C = ms.current_mesh().face_color_matrix()
+            else:
+                C = np.ones((F.shape[0], 3))  # White color (R=1, G=1, B=1)
         else:
             F = self.faces
             V = self.vertices
-            C = self.face_colors
+            # C = self.face_colors
+            if self.face_colors is None:
+                C = np.ones((F.shape[0], 3))  # White color (R=1, G=1, B=1)
+            else:
+                C = self.face_colors
 
         V = (V - (V.max(0) + V.min(0)) / 2) / max(V.max(0) - V.min(0)) # normalize vertices 
         MVP = perspective(25, 1, 1, 100) @ translate(0, 0, -3.5) @ rotate(angle_x, 'x') @ rotate(angle_y, 'y') # create model-view-projection matrix
@@ -218,9 +240,13 @@ class SponjMesh(Logger):
 
         if currect_mesh.has_vertex_color():
             self.vertex_colors = currect_mesh.vertex_color_matrix()
-        
+        else:
+            self.vertex_colors = np.ones((self.vertices.shape[0], 3))
+
         if currect_mesh.has_face_color():
             self.face_colors = currect_mesh.face_color_matrix()
+        else:
+            self.face_colors = np.ones((self.faces.shape[0], 3))
 
         self.face_shape = self.faces.shape
         self.vertex_shape = self.vertices.shape
@@ -233,11 +259,13 @@ class SponjMesh(Logger):
     def json(self):
         self.update()
         return {
-            "gif": self.gif,
+            "gif": self.gif, # TODO: make gif optional
             "faces": self.faces.tolist(),
             "vertices": self.vertices.tolist(),
             "colors": self.vertex_colors.tolist(),
             "normals": self.vertex_normals.tolist(),
+
+            "glb": open(self.glb_path, "rb") if self.glb_path else None,
         }
 
 import numpy as np
